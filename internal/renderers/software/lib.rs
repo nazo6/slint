@@ -17,6 +17,7 @@ extern crate std;
 mod draw_functions;
 mod fixed;
 mod fonts;
+pub mod line_render_async;
 mod minimal_software_window;
 #[cfg(feature = "path")]
 mod path;
