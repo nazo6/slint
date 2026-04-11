@@ -772,6 +772,37 @@ impl SoftwareRenderer {
             PhysicalRegion { ..Default::default() }
         }
     }
+
+    pub async fn render_async_by_line(
+        &self,
+        line_buffer: impl line_render_async::LineBufferProviderAsync,
+    ) -> PhysicalRegion {
+        let Some(window) = self.maybe_window_adapter.borrow().as_ref().and_then(|w| w.upgrade())
+        else {
+            return Default::default();
+        };
+        let window_inner = WindowInner::from_pub(window.window());
+        let component_rc = window_inner.component();
+        let component = i_slint_core::item_tree::ItemTreeRc::borrow_pin(&component_rc);
+        if let Some(window_item) = i_slint_core::items::ItemRef::downcast_pin::<
+            i_slint_core::items::WindowItem,
+        >(component.as_ref().get_item_ref(0))
+        {
+            let factor = ScaleFactor::new(window_inner.scale_factor());
+            let size = LogicalSize::from_lengths(window_item.width(), window_item.height()).cast()
+                * factor;
+            line_render_async::render_window_frame_by_line_async(
+                window_inner,
+                window_item.background(),
+                size.cast(),
+                self,
+                line_buffer,
+            )
+            .await
+        } else {
+            PhysicalRegion { ..Default::default() }
+        }
+    }
 }
 
 #[doc(hidden)]
