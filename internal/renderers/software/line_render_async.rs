@@ -55,7 +55,7 @@ pub async fn render_window_frame_by_line_async<LB: LineBufferProviderAsync>(
                     |line_buffer| {
                         let offset = r.start;
 
-                        line_buffer.fill(background_color);
+                        // line_buffer.fill(background_color);
                         for span in scene.items[0..scene.current_items_index].iter().rev() {
                             debug_assert!(scene.current_line >= span.pos.y_length());
                             debug_assert!(
