@@ -605,13 +605,26 @@ pub fn compile_with_output_path(
 
     for resource in doc.embedded_file_resources.borrow().keys() {
         if !resource.starts_with("builtin:") {
-            dependencies.push(Path::new(resource).to_path_buf());
+            dependencies.push(remove_after_at(Path::new(resource).to_path_buf()));
         }
     }
 
     code_formatter.sink.flush().map_err(CompileError::SaveError)?;
 
     Ok(dependencies)
+}
+
+fn remove_after_at(path: std::path::PathBuf) -> std::path::PathBuf {
+    dbg!(&path);
+    if let Some(file_name) = path.file_name() {
+        if let Some(name_str) = file_name.to_str() {
+            if let Some(at_index) = name_str.find('@') {
+                let new_name = &name_str[..at_index];
+                return path.with_file_name(new_name);
+            }
+        }
+    }
+    path
 }
 
 /// This function is for use the application's build script, in order to print any device specific
