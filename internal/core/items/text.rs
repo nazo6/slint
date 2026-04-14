@@ -66,9 +66,12 @@ pub struct ComplexText {
 impl Item for ComplexText {
     fn init(self: Pin<&Self>, _self_rc: &ItemRc) {}
 
+    fn deinit(self: Pin<&Self>, _window_adapter: &Rc<dyn WindowAdapter>) {}
+
     fn layout_info(
         self: Pin<&Self>,
         orientation: Orientation,
+        cross_axis_constraint: Coord,
         window_adapter: &Rc<dyn WindowAdapter>,
         self_rc: &ItemRc,
     ) -> LayoutInfo {
@@ -78,6 +81,7 @@ impl Item for ComplexText {
             window_adapter,
             orientation,
             Self::FIELD_OFFSETS.width().apply_pin(self),
+            cross_axis_constraint,
         )
     }
 
@@ -244,9 +248,12 @@ pub struct StyledTextItem {
 impl Item for StyledTextItem {
     fn init(self: Pin<&Self>, _self_rc: &ItemRc) {}
 
+    fn deinit(self: Pin<&Self>, _window_adapter: &Rc<dyn WindowAdapter>) {}
+
     fn layout_info(
         self: Pin<&Self>,
         orientation: Orientation,
+        cross_axis_constraint: Coord,
         window_adapter: &Rc<dyn WindowAdapter>,
         self_rc: &ItemRc,
     ) -> LayoutInfo {
@@ -256,6 +263,7 @@ impl Item for StyledTextItem {
             window_adapter,
             orientation,
             Self::FIELD_OFFSETS.width().apply_pin(self),
+            cross_axis_constraint,
         )
     }
 
@@ -462,9 +470,12 @@ pub struct SimpleText {
 impl Item for SimpleText {
     fn init(self: Pin<&Self>, _self_rc: &ItemRc) {}
 
+    fn deinit(self: Pin<&Self>, _window_adapter: &Rc<dyn WindowAdapter>) {}
+
     fn layout_info(
         self: Pin<&Self>,
         orientation: Orientation,
+        cross_axis_constraint: Coord,
         window_adapter: &Rc<dyn WindowAdapter>,
         self_rc: &ItemRc,
     ) -> LayoutInfo {
@@ -474,6 +485,7 @@ impl Item for SimpleText {
             window_adapter,
             orientation,
             Self::FIELD_OFFSETS.width().apply_pin(self),
+            cross_axis_constraint,
         )
     }
 
@@ -626,6 +638,7 @@ fn text_layout_info(
     window_adapter: &Rc<dyn WindowAdapter>,
     orientation: Orientation,
     width: Pin<&Property<LogicalLength>>,
+    cross_axis_constraint: Coord,
 ) -> LayoutInfo {
     let implicit_size = |max_width, text_wrap| {
         window_adapter.renderer().text_size(text, self_rc, max_width, text_wrap)
@@ -655,8 +668,14 @@ fn text_layout_info(
         Orientation::Vertical => {
             let h = match text.wrap() {
                 TextWrap::NoWrap => implicit_size(None, TextWrap::NoWrap).height,
-                TextWrap::WordWrap => implicit_size(Some(width.get()), TextWrap::WordWrap).height,
-                TextWrap::CharWrap => implicit_size(Some(width.get()), TextWrap::CharWrap).height,
+                wrap @ (TextWrap::WordWrap | TextWrap::CharWrap) => {
+                    let w = if cross_axis_constraint >= 0 as Coord {
+                        LogicalLength::new(cross_axis_constraint)
+                    } else {
+                        width.get()
+                    };
+                    implicit_size(Some(w), wrap).height
+                }
             }
             .ceil();
             LayoutInfo { min: h, preferred: h, ..LayoutInfo::default() }
@@ -754,9 +773,17 @@ pub struct TextInput {
 impl Item for TextInput {
     fn init(self: Pin<&Self>, _self_rc: &ItemRc) {}
 
+    fn deinit(self: Pin<&Self>, window_adapter: &Rc<dyn WindowAdapter>) {
+        if self.has_focus() {
+            let window_inner = crate::window::WindowInner::from_pub(window_adapter.window());
+            window_inner.set_text_input_focused(false);
+        }
+    }
+
     fn layout_info(
         self: Pin<&Self>,
         orientation: Orientation,
+        cross_axis_constraint: Coord,
         window_adapter: &Rc<dyn WindowAdapter>,
         self_rc: &ItemRc,
     ) -> LayoutInfo {
@@ -783,11 +810,13 @@ impl Item for TextInput {
             Orientation::Vertical => {
                 let h = match self.wrap() {
                     TextWrap::NoWrap => implicit_size(None, TextWrap::NoWrap).height,
-                    TextWrap::WordWrap => {
-                        implicit_size(Some(self.width()), TextWrap::WordWrap).height
-                    }
-                    TextWrap::CharWrap => {
-                        implicit_size(Some(self.width()), TextWrap::CharWrap).height
+                    wrap @ (TextWrap::WordWrap | TextWrap::CharWrap) => {
+                        let w = if cross_axis_constraint >= 0 as Coord {
+                            LogicalLength::new(cross_axis_constraint)
+                        } else {
+                            self.width()
+                        };
+                        implicit_size(Some(w), wrap).height
                     }
                 }
                 .ceil();
@@ -1191,9 +1220,6 @@ impl Item for TextInput {
                 }
                 WindowInner::from_pub(window_adapter.window()).set_text_input_focused(false);
                 if !self.read_only() {
-                    if let Some(window_adapter) = window_adapter.internal(crate::InternalToken) {
-                        window_adapter.input_method_request(InputMethodRequest::Disable);
-                    }
                     // commit the preedit text on android
                     #[cfg(target_os = "android")]
                     {
