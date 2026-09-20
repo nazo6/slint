@@ -66,6 +66,25 @@ impl MinimalSoftwareWindow {
             false
         }
     }
+    /// My version of draw_async_if_needed.
+    pub async fn draw_async_if_needed_2(
+        &self,
+        render_callback: impl AsyncFnOnce(&SoftwareRenderer),
+    ) -> bool {
+        if self.needs_redraw.replace(false)
+            || self.renderer.rendering_metrics_collector.as_ref().is_some_and(|m| m.refresh_mode() == i_slint_core::graphics::rendering_metrics_collector::RefreshMode::FullSpeed)
+        {
+            render_callback(&self.renderer).await;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Set the type of buffer that will be passed to the SoftwareRenderer in the render callback.
+    pub fn set_repaint_buffer_type(&self, repaint_buffer_type: RepaintBufferType) {
+        self.renderer.set_repaint_buffer_type(repaint_buffer_type);
+    }
 
     #[doc(hidden)]
     /// Forward to the window through Deref
